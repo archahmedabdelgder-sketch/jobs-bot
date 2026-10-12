@@ -1,45 +1,44 @@
-import requests
+import requests, os
+from bs4 import BeautifulSoup
 
-TOKEN = "8746919756:AAFUtrn6XdP0B5ZbU1A7"
-CHAT_ID = "5921311298"
+KEYWORDS = ["3d visualizer", "architectural visualizer", "archviz", "3d artist", "v-ray"]
 
-def send_msg(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": text, "parse_mode": "HTML"}
-    requests.post(url, data=data)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-def get_jobs():
+def send(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": CHAT_ID, "text": text})
+
+def get_remotive():
+    jobs=[]
     try:
-        # نبحث بكلمة 3D Architectural في الـ API
-        url = "https://remotive.com/api/remote-jobs?search=3d%20architectural%20visualizer"
-        r = requests.get(url).json()
-        jobs = r.get('jobs', [])
-        
-        # فلترة إضافية عشان نتأكد
-        keywords = ["3d", "visualizer", "archviz", "architectural", "render", "blender", "3ds max", "vray", "corona", "lumion", "revit", "sketchup", "unreal", "visualization"]
-        
-        filtered = []
-        for job in jobs:
-            title = (job.get('title','') + " " + job.get('description','')).lower()
-            if any(k in title for k in keywords):
-                filtered.append(job)
-        
-        if not filtered:
-            # لو ما لقى، جيب أول 3 وظائف من البحث الأصلي
-            return jobs[:3]
-            
-        return filtered[:5]
-    except:
-        return []
+        data=requests.get("https://remotive.com/api/remote-jobs?limit=100").json()
+        for j in data['jobs']:
+            if any(k in j['title'].lower() for k in KEYWORDS):
+                jobs.append(f"💼 {j['title']}\n🏢 {j['company_name']}\n🔗 {j['url']}")
+    except: pass
+    return jobs
 
-jobs = get_jobs()
+def get_linkedin():
+    jobs=[]
+    headers={"User-Agent":"Mozilla/5.0"}
+    for kw in ["3d visualizer", "architectural visualizer"]:
+        try:
+            url=f"https://www.linkedin.com/jobs/search/?keywords={kw}&location=Worldwide&f_WT=2"
+            r=requests.get(url, headers=headers, timeout=15)
+            soup=BeautifulSoup(r.text,'html.parser')
+            for card in soup.select('.base-card')[:5]:
+                t=card.select_one('.base-search-card__title')
+                l=card.select_one('.base-card__full-link')
+                if t and l:
+                    jobs.append(f"💼 {t.text.strip()} - LinkedIn 🌚\n🔗 {l['href']}")
+        except: pass
+    return jobs
 
-if not jobs:
-    send_msg("🔍 اليوم ما لقيت وظائف 3D Visualizer جديدة، حأفتش تاني بعد 6 ساعات")
+all_jobs=get_remotive()+get_linkedin()
+if not all_jobs:
+    send("🔍 مافي وظائف 3D جديدة اليوم، حافتش بعد 6 ساعات")
 else:
-    for job in jobs:
-        title = job.get('title','No title')
-        company = job.get('company_name','')
-        link = job.get('url','')
-        msg = f"<b>🎨 {title}</b>\n🏢 {company}\n\n🔗 {link}\n\n#3D #ArchViz"
-        send_msg(msg)
+    for job in all_jobs[:10]:
+        send(job)
