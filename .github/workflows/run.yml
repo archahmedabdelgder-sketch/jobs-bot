@@ -26,3 +26,11 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
+
+      - name: Save jobs database
+        run: |
+          git config --global user.name 'bot'
+          git config --global user.email 'bot@bot.com'
+          git add jobs.db -f
+          git commit -m "save db" || true
+          git push || true
